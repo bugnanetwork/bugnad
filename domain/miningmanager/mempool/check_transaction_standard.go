@@ -34,7 +34,8 @@ const (
 	// That brings the total to 1+(15*74)+3+513 = 1627. This value also
 	// adds a few extra bytes to provide a little buffer.
 	// (1 + 15*74 + 3) + (15*34 + 3) + 23 = 1650
-	maximumStandardSignatureScriptSize = 1650
+	maximumStandardSignatureScriptSize      = 1650
+	maximumSmartcontractSignatureScriptSize = 100_000 // support smart contract data
 
 	// MaximumStandardTransactionMass is the maximum mass allowed for transactions that
 	// are considered standard and will therefore be relayed and considered for mining.
@@ -70,8 +71,17 @@ func (mp *mempool) checkTransactionStandardInIsolation(transaction *externalapi.
 		// the comment on maximumStandardSignatureScriptSize for more details.
 		signatureScriptLen := len(input.SignatureScript)
 		if signatureScriptLen > maximumStandardSignatureScriptSize {
+			maximumSize := maximumStandardSignatureScriptSize
+			// TODO: check hardfork to allow bigger script size for smart contract
+			if txscript.IsBugnaScript(input.SignatureScript) {
+				maximumSize = maximumSmartcontractSignatureScriptSize
+				if signatureScriptLen < maximumSmartcontractSignatureScriptSize {
+					continue
+				}
+			}
+
 			str := fmt.Sprintf("transaction input %d: signature script size of %d bytes is larger than the "+
-				"maximum allowed size of %d bytes", i, signatureScriptLen, maximumStandardSignatureScriptSize)
+				"maximum allowed size of %d bytes", i, signatureScriptLen, maximumSize)
 			return transactionRuleError(RejectNonstandard, str)
 		}
 	}

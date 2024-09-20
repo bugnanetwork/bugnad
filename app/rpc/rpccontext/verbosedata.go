@@ -141,6 +141,14 @@ func (ctx *Context) PopulateTransactionWithVerboseData(
 			return err
 		}
 	}
+
+	for _, journal := range transaction.Journal {
+		err := ctx.populateTransactionJournalWithVerboseData(journal)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -173,4 +181,55 @@ func (ctx *Context) populateTransactionOutputWithVerboseData(transactionOutput *
 		ScriptPublicKeyAddress: encodedScriptPublicKeyAddress,
 	}
 	return nil
+}
+
+func (ctx *Context) populateTransactionJournalWithVerboseData(transactionJournal appmessage.RPCTransactionJournal) error {
+
+	switch j := transactionJournal.(type) {
+	case *appmessage.RPCTransactionJournalCreateObjectChange:
+		scriptPublicKeyType, encodedScriptPublicKeyAddress := ctx.extractScriptPubKeyAddress(j.ScriptPublicKey)
+		j.VerboseData = &appmessage.RPCTransactionJournalCreateObjectChangeVerboseData{
+			ScriptPublicKeyType:    scriptPublicKeyType.String(),
+			ScriptPublicKeyAddress: encodedScriptPublicKeyAddress,
+		}
+	case *appmessage.RPCTransactionJournalNonceChange:
+		scriptPublicKeyType, encodedScriptPublicKeyAddress := ctx.extractScriptPubKeyAddress(j.ScriptPublicKey)
+		j.VerboseData = &appmessage.RPCTransactionJournalNonceChangeVerboseData{
+			ScriptPublicKeyType:    scriptPublicKeyType.String(),
+			ScriptPublicKeyAddress: encodedScriptPublicKeyAddress,
+		}
+	case *appmessage.RPCTransactionJournalStorageChange:
+		scriptPublicKeyType, encodedScriptPublicKeyAddress := ctx.extractScriptPubKeyAddress(j.ScriptPublicKey)
+		j.VerboseData = &appmessage.RPCTransactionJournalStorageChangeVerboseData{
+			ScriptPublicKeyType:    scriptPublicKeyType.String(),
+			ScriptPublicKeyAddress: encodedScriptPublicKeyAddress,
+		}
+	}
+	return nil
+}
+
+func (ctx *Context) extractScriptPubKeyAddress(
+	script *appmessage.RPCScriptPublicKey) (txscript.ScriptClass, string) {
+	scriptPublicKey, err := hex.DecodeString(script.Script)
+	if err != nil {
+		return txscript.NonStandardTy, ""
+	}
+
+	domainScriptPublicKey := &externalapi.ScriptPublicKey{
+		Script:  scriptPublicKey,
+		Version: script.Version,
+	}
+
+	// Ignore the error here since an error means the script
+	// couldn't be parsed and there's no additional information about
+	// it anyways
+	scriptPublicKeyType, scriptPublicKeyAddress, _ := txscript.ExtractScriptPubKeyAddress(
+		domainScriptPublicKey, ctx.Config.ActiveNetParams)
+
+	var encodedScriptPublicKeyAddress string
+	if scriptPublicKeyAddress != nil {
+		encodedScriptPublicKeyAddress = scriptPublicKeyAddress.EncodeAddress()
+	}
+
+	return scriptPublicKeyType, encodedScriptPublicKeyAddress
 }

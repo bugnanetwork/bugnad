@@ -5,6 +5,7 @@
 package txscript
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/bugnanetwork/bugnad/domain/consensus/model/externalapi"
@@ -60,6 +61,20 @@ func isPayToPubkey(pops []parsedOpcode) bool {
 		pops[1].opcode.value == OpCheckSig
 }
 
+func isPayToPubkeyInput(pops []parsedOpcode) bool {
+	isPubkey := len(pops) > 2 && pops[0].opcode.value == OpData32 && pops[1].opcode.value == OpCheckSig
+
+	for _, pop := range pops[2:] {
+		if pop.opcode.value == OpDrop || pop.opcode.value == Op2Drop {
+			continue
+		}
+
+		return false
+	}
+
+	return isPubkey
+}
+
 // isPayToPubkeyECDSA returns true if the script passed is an ECDSA pay-to-pubkey
 // transaction, false otherwise.
 func isPayToPubkeyECDSA(pops []parsedOpcode) bool {
@@ -67,6 +82,20 @@ func isPayToPubkeyECDSA(pops []parsedOpcode) bool {
 		pops[0].opcode.value == OpData33 &&
 		pops[1].opcode.value == OpCheckSigECDSA
 
+}
+
+func isPayToPubkeyECDSAInput(pops []parsedOpcode) bool {
+	isPubkey := len(pops) > 2 && pops[0].opcode.value == OpData32 && pops[1].opcode.value == OpCheckSigECDSA
+
+	for _, pop := range pops[2:] {
+		if pop.opcode.value == OpDrop || pop.opcode.value == Op2Drop {
+			continue
+		}
+
+		return false
+	}
+
+	return isPubkey
 }
 
 // scriptType returns the type of the script being inspected from the known
@@ -209,6 +238,18 @@ func payToPubKeyScriptECDSA(pubKey []byte) ([]byte, error) {
 func payToScriptHashScript(scriptHash []byte) ([]byte, error) {
 	return NewScriptBuilder().AddOp(OpBlake2b).AddData(scriptHash).
 		AddOp(OpEqual).Script()
+}
+
+func ScriptHashToScriptPublicKey(scriptHash []byte) ([]byte, error) {
+	return NewScriptBuilder().AddOp(OpBlake2b).AddData(scriptHash).
+		AddOp(OpEqual).Script()
+}
+
+func PubKeyToScriptPublicKey(pubKey []byte) ([]byte, error) {
+	return NewScriptBuilder().
+		AddData(pubKey).
+		AddOp(OpCheckSig).
+		Script()
 }
 
 // PayToAddrScript creates a new script to pay a transaction output to a the
@@ -440,4 +481,74 @@ func ExtractAtomicSwapDataPushes(version uint16, scriptPubKey []byte) (*AtomicSw
 		return nil, nil
 	}
 	return pushes, nil
+}
+
+// scriptType returns the type of the script being inspected from the known
+// standard types.
+func typeOfInputScript(pops []parsedOpcode) ScriptClass {
+	switch {
+	case isPayToPubkeyInput(pops):
+		return PubKeyTy
+	case isPayToPubkeyECDSAInput(pops):
+		return PubKeyECDSATy
+	case isScriptHashInput(pops):
+		return ScriptHashTy
+	}
+	return NonStandardTy
+}
+
+var BugnaScript = []byte{0x0c, 0x62, 0x75, 0x67, 0x6e, 0x61, 0x5f, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74}
+
+func IsBugnaScript(script []byte) bool {
+	return bytes.Equal(script[:len(BugnaScript)], BugnaScript)
+}
+
+func ExtractSignatureScriptToSmartcontractInputData(signatureScript []byte) (*externalapi.ScriptPublicKey, [][]byte, error) {
+	if !IsBugnaScript(signatureScript) {
+		return nil, nil, fmt.Errorf("invalid script")
+	}
+
+	parts, err := PushedData(signatureScript)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// cut prefix bugna_script
+	parts = parts[1:]
+	if len(parts) < 3 {
+		return nil, nil, fmt.Errorf("invalid script")
+	}
+
+	pops, err := parseScript(parts[len(parts)-1])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var script []byte
+
+	scriptClass := typeOfInputScript(pops)
+	switch scriptClass {
+	case PubKeyTy:
+		script, err = payToPubKeyScript(pops[0].data)
+		if err != nil {
+			return nil, nil, err
+		}
+	case PubKeyECDSATy:
+		script, err = payToPubKeyScriptECDSA(pops[0].data)
+		if err != nil {
+			return nil, nil, err
+		}
+	case ScriptHashTy:
+		script, err = payToScriptHashScript(pops[1].data)
+		if err != nil {
+			return nil, nil, err
+		}
+	default:
+		return nil, nil, fmt.Errorf("cannot handle script class %s", scriptClass)
+	}
+
+	return &externalapi.ScriptPublicKey{
+		Script:  script,
+		Version: constants.MaxScriptPublicKeyVersion,
+	}, parts[:len(parts)-2], nil
 }

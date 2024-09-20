@@ -39,6 +39,38 @@ message DbTransaction {
   DbSubnetworkId subnetworkID = 5;
   uint64 gas = 6;
   bytes payload = 8;
+  repeated DbTransactionLog logs = 9;
+  repeated DbTransactionJournal journal = 10;
+  string result = 11;
+}
+
+message DbTransactionLog {
+  DbScriptPublicKey scriptPublicKey = 1;
+  repeated DbHash topics = 2;
+  bytes data = 3;
+  uint64 index = 4;
+}
+
+message DbTransactionJournal {
+    message CreateObjectChange {
+        DbScriptPublicKey scriptPublicKey = 1;
+    }
+    message NonceChange {
+        DbScriptPublicKey scriptPublicKey = 1;
+        uint64 previousNonce = 2;
+        uint64 newNonce = 3;
+    }
+    message StorageChange {
+        DbScriptPublicKey scriptPublicKey = 1;
+        DbHash key = 2;
+        bytes previousValue = 3;
+        bytes newValue = 4;
+    }
+    oneof payload {
+        CreateObjectChange createObjectChange = 1;
+        NonceChange nonceChange = 2;
+        StorageChange storageChange = 3;
+    }
 }
 
 message DbTransactionInput {
@@ -162,4 +194,20 @@ message DbBlockHeaderCount {
 message DbBlockGHOSTDAGDataHashPair {
   DbHash hash = 1;
   DbBlockGhostdagData GhostdagData = 2;
+}
+
+message DbKRC721Collection {
+    DbScriptPublicKey id = 1;
+    DbScriptPublicKey owner = 2;
+    string name = 3;
+    string symbol = 4;
+    uint64 maxSupply = 5;
+    uint64 totalSupply = 6;
+    string baseURI = 7;
+}
+
+message DbAccount {
+    uint64 nonce = 1;
+    DbHash codeHash = 2;
+    DbScriptPublicKey scriptPublicKey = 3;
 }

@@ -139,6 +139,8 @@ message BugnadMessage {
     GetMempoolEntriesByAddressesResponseMessage getMempoolEntriesByAddressesResponse = 1085;
     GetCoinSupplyRequestMessage getCoinSupplyRequest = 1086;
     GetCoinSupplyResponseMessage getCoinSupplyResponse= 1087;
+    GetBvmSmartContractDataRequestMessage getBvmSmartContractDataRequest = 1088;
+    GetBvmSmartContractDataResponseMessage getBvmSmartContractDataResponse = 1089;
   }
 }
 

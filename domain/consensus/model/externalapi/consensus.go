@@ -56,4 +56,6 @@ type Consensus interface {
 	IsChainBlock(blockHash *DomainHash) (bool, error)
 	VirtualMergeDepthRoot() (*DomainHash, error)
 	IsNearlySynced() (bool, error)
+
+	GetBvmSmartContractData(address *ScriptPublicKey, input []byte) ([]byte, error)
 }

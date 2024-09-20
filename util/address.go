@@ -292,7 +292,7 @@ func NewAddressScriptHash(serializedScript []byte, prefix Bech32Prefix) (*Addres
 }
 
 // NewAddressScriptHashFromHash returns a new AddressScriptHash. scriptHash
-// must be 20 bytes.
+// must be 32 bytes.
 func NewAddressScriptHashFromHash(scriptHash []byte, prefix Bech32Prefix) (*AddressScriptHash, error) {
 	return newAddressScriptHashFromHash(prefix, scriptHash)
 }

@@ -19,6 +19,7 @@ type blockProcessor struct {
 	blockLogger        *blocklogger.BlockLogger
 
 	consensusStateManager model.ConsensusStateManager
+	transactionProcessor  model.TransactionProcessor
 	pruningManager        model.PruningManager
 	blockValidator        model.BlockValidator
 	dagTopologyManager    model.DAGTopologyManager
@@ -58,6 +59,7 @@ func New(
 	databaseContext model.DBManager,
 
 	consensusStateManager model.ConsensusStateManager,
+	transactionProcessor model.TransactionProcessor,
 	pruningManager model.PruningManager,
 	blockValidator model.BlockValidator,
 	dagTopologyManager model.DAGTopologyManager,
@@ -103,6 +105,7 @@ func New(
 		syncManager:           syncManager,
 
 		consensusStateManager:               consensusStateManager,
+		transactionProcessor:                transactionProcessor,
 		acceptanceDataStore:                 acceptanceDataStore,
 		blockStore:                          blockStore,
 		blockStatusStore:                    blockStatusStore,

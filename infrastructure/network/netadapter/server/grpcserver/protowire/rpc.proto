@@ -66,6 +66,9 @@ message RpcTransaction {
   uint64 gas = 6;
   string payload = 8;
   RpcTransactionVerboseData verboseData = 9;
+  repeated RpcTransactionLog logs = 10;
+  repeated RpcTransactionJournal journal = 11;
+  string result = 12;
 }
 
 message RpcTransactionInput {
@@ -105,6 +108,50 @@ message RpcTransactionVerboseData{
   uint64 mass = 4;
   string blockHash = 12;
   uint64 blockTime = 14;
+}
+
+message RpcTransactionLog {
+  RpcScriptPublicKey scriptPublicKey = 1;
+  repeated string topics = 2;
+  string data = 3;
+  uint64 index = 4;
+}
+
+message RpcTransactionJournal {
+    message CreateObjectChange {
+        RpcScriptPublicKey scriptPublicKey = 1;
+        message VerboseData{
+            string scriptPublicKeyType = 1;
+            string scriptPublicKeyAddress = 2;
+        }
+        VerboseData verboseData = 2;
+        }
+    message NonceChange {
+        RpcScriptPublicKey scriptPublicKey = 1;
+        uint64 previousNonce = 2;
+        uint64 newNonce = 3;
+        message VerboseData{
+            string scriptPublicKeyType = 1;
+            string scriptPublicKeyAddress = 2;
+        }
+        VerboseData verboseData = 4;
+    }
+    message StorageChange {
+        RpcScriptPublicKey scriptPublicKey = 1;
+        string key = 2;
+        string previousValue = 3;
+        string newValue = 4;
+        message VerboseData{
+            string scriptPublicKeyType = 1;
+            string scriptPublicKeyAddress = 2;
+        }
+        VerboseData verboseData = 5;
+    }
+    oneof payload {
+        CreateObjectChange createObjectChange = 1;
+        NonceChange nonceChange = 2;
+        StorageChange storageChange = 3;
+    }
 }
 
 message RpcTransactionInputVerboseData{
@@ -720,4 +767,15 @@ message GetCoinSupplyResponseMessage{
         uint64 circulatingSompi = 2;
 
         RPCError error = 1000;
+}
+
+message GetBvmSmartContractDataRequestMessage{
+  string address = 1;
+  string input = 2;
+}
+
+message GetBvmSmartContractDataResponseMessage{
+  string data = 1;
+
+  RPCError error = 1000;
 }

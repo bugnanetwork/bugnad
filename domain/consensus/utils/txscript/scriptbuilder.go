@@ -49,8 +49,9 @@ func (e ErrScriptNotCanonical) Error() string {
 //	}
 //	fmt.Printf("Final multi-sig script: %x\n", script)
 type ScriptBuilder struct {
-	script []byte
-	err    error
+	script        []byte
+	err           error
+	isbugnaScript bool
 }
 
 // AddOp pushes the passed opcode to the end of the script. The script will not
@@ -200,11 +201,22 @@ func (b *ScriptBuilder) AddData(data []byte) *ScriptBuilder {
 	// script size would result in a non-canonical script.
 	dataSize := canonicalDataSize(data)
 	if len(b.script)+dataSize > MaxScriptSize {
-		str := fmt.Sprintf("adding %d bytes of data would exceed the "+
-			"maximum allowed canonical script length of %d",
-			dataSize, MaxScriptSize)
-		b.err = ErrScriptNotCanonical(str)
-		return b
+		maxScriptSize := MaxScriptSize
+		if !b.isbugnaScript && IsBugnaScript(b.script) {
+			b.isbugnaScript = true
+		}
+
+		if b.isbugnaScript {
+			maxScriptSize = MaxScriptSmartcontractInputSize
+		}
+
+		if len(b.script)+dataSize > maxScriptSize {
+			str := fmt.Sprintf("adding %d bytes of data would exceed the "+
+				"maximum allowed canonical script length of %d",
+				dataSize, maxScriptSize)
+			b.err = ErrScriptNotCanonical(str)
+			return b
+		}
 	}
 
 	// Pushes larger than the max script element size would result in a

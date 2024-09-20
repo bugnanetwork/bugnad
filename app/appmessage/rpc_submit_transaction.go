@@ -53,6 +53,9 @@ type RPCTransaction struct {
 	Gas          uint64
 	Payload      string
 	VerboseData  *RPCTransactionVerboseData
+	Logs         []*RPCTransactionLog
+	Journal      []RPCTransactionJournal
+	Result       string
 }
 
 // RPCTransactionInput is a bugnad transaction input representation
@@ -110,6 +113,58 @@ type RPCTransactionInputVerboseData struct {
 
 // RPCTransactionOutputVerboseData holds data about a transaction output
 type RPCTransactionOutputVerboseData struct {
+	ScriptPublicKeyType    string
+	ScriptPublicKeyAddress string
+}
+
+type RPCTransactionLog struct {
+	ScriptPublicKey *RPCScriptPublicKey
+	Topics          []string
+	Data            string
+	Index           uint64
+}
+
+type RPCTransactionJournal interface {
+	isRPCTransactionJournal()
+}
+
+type RPCTransactionJournalCreateObjectChange struct {
+	ScriptPublicKey *RPCScriptPublicKey
+	VerboseData     *RPCTransactionJournalCreateObjectChangeVerboseData
+}
+
+func (RPCTransactionJournalCreateObjectChange) isRPCTransactionJournal() {}
+
+type RPCTransactionJournalNonceChange struct {
+	ScriptPublicKey *RPCScriptPublicKey
+	PreviousNonce   uint64
+	NewNonce        uint64
+	VerboseData     *RPCTransactionJournalNonceChangeVerboseData
+}
+
+func (RPCTransactionJournalNonceChange) isRPCTransactionJournal() {}
+
+type RPCTransactionJournalCreateObjectChangeVerboseData struct {
+	ScriptPublicKeyType    string
+	ScriptPublicKeyAddress string
+}
+
+type RPCTransactionJournalNonceChangeVerboseData struct {
+	ScriptPublicKeyType    string
+	ScriptPublicKeyAddress string
+}
+
+type RPCTransactionJournalStorageChange struct {
+	ScriptPublicKey *RPCScriptPublicKey
+	Key             string
+	PreviousValue   string
+	NewValue        string
+	VerboseData     *RPCTransactionJournalStorageChangeVerboseData
+}
+
+func (RPCTransactionJournalStorageChange) isRPCTransactionJournal() {}
+
+type RPCTransactionJournalStorageChangeVerboseData struct {
 	ScriptPublicKeyType    string
 	ScriptPublicKeyAddress string
 }

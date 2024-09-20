@@ -10,6 +10,7 @@ import (
 	"github.com/bugnanetwork/bugnad/domain/consensus/ruleerrors"
 	"github.com/bugnanetwork/bugnad/domain/consensus/utils/consensushashing"
 	"github.com/bugnanetwork/bugnad/domain/consensus/utils/multiset"
+	"github.com/bugnanetwork/bugnad/domain/consensus/utils/transactionhelper"
 	"github.com/bugnanetwork/bugnad/domain/consensus/utils/utxo"
 	"github.com/bugnanetwork/bugnad/infrastructure/db/database"
 	"github.com/bugnanetwork/bugnad/infrastructure/logger"
@@ -324,6 +325,17 @@ func (bp *blockProcessor) validatePostProofOfWork(stagingArea *model.StagingArea
 
 	isHeaderOnlyBlock := isHeaderOnlyBlock(block)
 	if !isHeaderOnlyBlock {
+		excuteStagingArea := model.NewStagingArea()
+		for i, transaction := range block.Transactions {
+			if transactionhelper.IsCoinBase(transaction) {
+				continue
+			}
+			log.Infof("blockhash: %s,  excute txid: %s", blockHash, consensushashing.TransactionID(transaction))
+			err := bp.transactionProcessor.Excute(excuteStagingArea, blockHash, block.Header.DAAScore(), transaction)
+			if err != nil {
+				log.Errorf("Transaction %s - input %d in block %s failed to execute: %s", consensushashing.TransactionID(transaction), i, blockHash, err.Error())
+			}
+		}
 		bp.blockStore.Stage(stagingArea, blockHash, block)
 		err := bp.blockValidator.ValidateBodyInIsolation(stagingArea, blockHash)
 		if err != nil {

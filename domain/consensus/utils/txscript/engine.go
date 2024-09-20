@@ -28,7 +28,8 @@ const (
 	MaxStackSize = 244
 
 	// MaxScriptSize is the maximum allowed length of a raw script.
-	MaxScriptSize = 10000
+	MaxScriptSize                   = 10000
+	MaxScriptSmartcontractInputSize = 100_000
 )
 
 // Engine is the virtual machine that executes scripts.
@@ -506,10 +507,18 @@ func NewEngine(scriptPubKey *externalapi.ScriptPublicKey, tx *externalapi.Domain
 }
 
 func parseScriptAndVerifySize(script []byte) ([]parsedOpcode, error) {
-	if len(script) > MaxScriptSize {
+	if len(script) > MaxScriptSize && !IsBugnaScript(script) {
 		str := fmt.Sprintf("script size %d is larger than max "+
 			"allowed size %d", len(script), MaxScriptSize)
 		return nil, scriptError(ErrScriptTooBig, str)
 	}
+
+	// TODO: check hardfork to allow bigger script size for smart contract
+	if IsBugnaScript(script) && len(script) > MaxScriptSmartcontractInputSize {
+		str := fmt.Sprintf("script size %d is larger than max "+
+			"allowed size %d", len(script), MaxScriptSmartcontractInputSize)
+		return nil, scriptError(ErrScriptTooBig, str)
+	}
+
 	return parseScript(script)
 }

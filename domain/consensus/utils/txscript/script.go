@@ -38,6 +38,23 @@ func isScriptHash(pops []parsedOpcode) bool {
 		pops[2].opcode.value == OpEqual
 }
 
+func isScriptHashInput(pops []parsedOpcode) bool {
+	isScriptHash := len(pops) > 3 &&
+		pops[0].opcode.value == OpBlake2b &&
+		pops[1].opcode.value == OpData32 &&
+		pops[2].opcode.value == OpEqual
+
+	for _, pop := range pops[2:] {
+		if pop.opcode.value == OpDrop || pop.opcode.value == Op2Drop {
+			continue
+		}
+
+		return false
+	}
+
+	return isScriptHash
+}
+
 // IsPayToScriptHash returns true if the script is in the standard
 // pay-to-script-hash (P2SH) format, false otherwise.
 func IsPayToScriptHash(script *externalapi.ScriptPublicKey) bool {

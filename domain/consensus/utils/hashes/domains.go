@@ -2,6 +2,7 @@ package hashes
 
 import (
 	"crypto/sha256"
+
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/sha3"
@@ -16,6 +17,7 @@ const (
 	proofOfWorkDomain             = "ProofOfWorkHash"
 	heavyHashDomain               = "HeavyHash"
 	merkleBranchDomain            = "MerkleBranchHash"
+	krc721HashDomain              = "KRC721Hash"
 )
 
 // transactionSigningECDSADomainHash is a hashed version of transcationSigningECDSADomain that is used
@@ -83,6 +85,15 @@ func NewMerkleBranchHashWriter() HashWriter {
 	blake, err := blake2b.New256([]byte(merkleBranchDomain))
 	if err != nil {
 		panic(errors.Wrapf(err, "this should never happen. %s is less than 64 bytes", merkleBranchDomain))
+	}
+	return HashWriter{blake}
+}
+
+// NewKRC721HashWriter Returns a new HashWriter used for hashing KRC721
+func NewKRC721HashWriter() HashWriter {
+	blake, err := blake2b.New256([]byte(krc721HashDomain))
+	if err != nil {
+		panic(errors.Wrapf(err, "this should never happen. %s is less than 64 bytes", krc721HashDomain))
 	}
 	return HashWriter{blake}
 }

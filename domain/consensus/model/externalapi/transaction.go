@@ -21,6 +21,10 @@ type DomainTransaction struct {
 	Fee  uint64
 	Mass uint64
 
+	Logs    []*DomainTransactionLog
+	Journal []DomainTransactionJournal
+	Result  string
+
 	// ID is a field that is used to cache the transaction ID.
 	// Always use consensushashing.TransactionID instead of accessing this field directly
 	ID *DomainTransactionID
@@ -46,6 +50,16 @@ func (tx *DomainTransaction) Clone() *DomainTransaction {
 		idClone = tx.ID.Clone()
 	}
 
+	logsClone := make([]*DomainTransactionLog, len(tx.Logs))
+	for i, log := range tx.Logs {
+		logsClone[i] = log.Clone()
+	}
+
+	journalClone := make([]DomainTransactionJournal, len(tx.Journal))
+	for i, journal := range tx.Journal {
+		journalClone[i] = journal.Clone()
+	}
+
 	return &DomainTransaction{
 		Version:      tx.Version,
 		Inputs:       inputsClone,
@@ -56,6 +70,9 @@ func (tx *DomainTransaction) Clone() *DomainTransaction {
 		Payload:      payloadClone,
 		Fee:          tx.Fee,
 		Mass:         tx.Mass,
+		Logs:         logsClone,
+		Journal:      journalClone,
+		Result:       tx.Result,
 		ID:           idClone,
 	}
 }
@@ -64,6 +81,9 @@ func (tx *DomainTransaction) Clone() *DomainTransaction {
 // an indication to update Equal and Clone accordingly.
 var _ = DomainTransaction{0, []*DomainTransactionInput{}, []*DomainTransactionOutput{}, 0,
 	DomainSubnetworkID{}, 0, []byte{}, 0, 0,
+	[]*DomainTransactionLog{},
+	[]DomainTransactionJournal{},
+	"",
 	&DomainTransactionID{}}
 
 // Equal returns whether tx equals to other
@@ -96,6 +116,26 @@ func (tx *DomainTransaction) Equal(other *DomainTransaction) bool {
 		}
 	}
 
+	if len(tx.Logs) != len(other.Logs) {
+		return false
+	}
+
+	for i, log := range tx.Logs {
+		if !log.Equal(other.Logs[i]) {
+			return false
+		}
+	}
+
+	if len(tx.Journal) != len(other.Journal) {
+		return false
+	}
+
+	for i, journal := range tx.Journal {
+		if !journal.Equal(other.Journal[i].(*DomainTransactionJournalCreateObjectChange)) {
+			return false
+		}
+	}
+
 	if tx.LockTime != other.LockTime {
 		return false
 	}
@@ -109,6 +149,10 @@ func (tx *DomainTransaction) Equal(other *DomainTransaction) bool {
 	}
 
 	if !bytes.Equal(tx.Payload, other.Payload) {
+		return false
+	}
+
+	if tx.Result != other.Result {
 		return false
 	}
 
@@ -360,4 +404,170 @@ func (id *DomainTransactionID) ByteArray() *[DomainHashSize]byte {
 // The transactionID bytes are cloned, therefore it is safe to modify the resulting slice.
 func (id *DomainTransactionID) ByteSlice() []byte {
 	return (*DomainHash)(id).ByteSlice()
+}
+
+type DomainTransactionLog struct {
+	ScriptPublicKey *ScriptPublicKey
+	Topics          []DomainHash
+	Data            []byte
+	Index           uint64
+}
+
+func (l *DomainTransactionLog) Clone() *DomainTransactionLog {
+	scriptPublicKeyClone := &ScriptPublicKey{
+		Script:  make([]byte, len(l.ScriptPublicKey.Script)),
+		Version: l.ScriptPublicKey.Version}
+	copy(scriptPublicKeyClone.Script, l.ScriptPublicKey.Script)
+
+	return &DomainTransactionLog{
+		ScriptPublicKey: scriptPublicKeyClone,
+		Topics:          l.Topics,
+		Data:            l.Data,
+		Index:           l.Index,
+	}
+}
+
+func (l *DomainTransactionLog) Equal(other *DomainTransactionLog) bool {
+	if l == nil || other == nil {
+		return l == other
+	}
+
+	if !l.ScriptPublicKey.Equal(other.ScriptPublicKey) {
+		return false
+	}
+
+	if len(l.Topics) != len(other.Topics) {
+		return false
+	}
+
+	for i, topic := range l.Topics {
+		if !topic.Equal(&other.Topics[i]) {
+			return false
+		}
+	}
+
+	if !bytes.Equal(l.Data, other.Data) {
+		return false
+	}
+
+	if l.Index != other.Index {
+		return false
+	}
+
+	return true
+}
+
+type DomainTransactionJournal interface {
+	isDomainTransactionJournal()
+	Clone() DomainTransactionJournal
+	Equal(other DomainTransactionJournal) bool
+}
+
+type DomainTransactionJournalCreateObjectChange struct {
+	ScriptPublicKey *ScriptPublicKey
+}
+
+func (DomainTransactionJournalCreateObjectChange) isDomainTransactionJournal() {}
+
+func (j *DomainTransactionJournalCreateObjectChange) Clone() DomainTransactionJournal {
+	scriptPublicKeyClone := &ScriptPublicKey{
+		Script:  make([]byte, len(j.ScriptPublicKey.Script)),
+		Version: j.ScriptPublicKey.Version}
+	copy(scriptPublicKeyClone.Script, j.ScriptPublicKey.Script)
+
+	return &DomainTransactionJournalCreateObjectChange{
+		ScriptPublicKey: scriptPublicKeyClone,
+	}
+}
+
+func (j *DomainTransactionJournalCreateObjectChange) Equal(o DomainTransactionJournal) bool {
+	other, ok := o.(*DomainTransactionJournalCreateObjectChange)
+	if !ok {
+		return false
+	}
+
+	if j == nil || other == nil {
+		return j == other
+	}
+
+	return j.ScriptPublicKey.Equal(other.ScriptPublicKey)
+}
+
+type DomainTransactionJournalNonceChange struct {
+	ScriptPublicKey *ScriptPublicKey
+	PreviousNonce   uint64
+	NewNonce        uint64
+}
+
+func (DomainTransactionJournalNonceChange) isDomainTransactionJournal() {}
+
+func (j *DomainTransactionJournalNonceChange) Clone() DomainTransactionJournal {
+	scriptPublicKeyClone := &ScriptPublicKey{
+		Script:  make([]byte, len(j.ScriptPublicKey.Script)),
+		Version: j.ScriptPublicKey.Version}
+	copy(scriptPublicKeyClone.Script, j.ScriptPublicKey.Script)
+
+	return &DomainTransactionJournalNonceChange{
+		ScriptPublicKey: scriptPublicKeyClone,
+		PreviousNonce:   j.PreviousNonce,
+		NewNonce:        j.NewNonce,
+	}
+}
+
+func (j *DomainTransactionJournalNonceChange) Equal(o DomainTransactionJournal) bool {
+	other, ok := o.(*DomainTransactionJournalNonceChange)
+	if !ok {
+		return false
+	}
+
+	if j == nil || other == nil {
+		return j == other
+	}
+
+	return j.ScriptPublicKey.Equal(other.ScriptPublicKey) && j.PreviousNonce == other.PreviousNonce && j.NewNonce == other.NewNonce
+}
+
+type DomainTransactionJournalStorageChange struct {
+	ScriptPublicKey *ScriptPublicKey
+	Key             DomainHash
+	PreviousValue   []byte
+	NewValue        []byte
+}
+
+func (DomainTransactionJournalStorageChange) isDomainTransactionJournal() {}
+
+func (j *DomainTransactionJournalStorageChange) Clone() DomainTransactionJournal {
+	scriptPublicKeyClone := &ScriptPublicKey{
+		Script:  make([]byte, len(j.ScriptPublicKey.Script)),
+		Version: j.ScriptPublicKey.Version}
+	copy(scriptPublicKeyClone.Script, j.ScriptPublicKey.Script)
+
+	previousValueClone := make([]byte, len(j.PreviousValue))
+	copy(previousValueClone, j.PreviousValue)
+
+	newValueClone := make([]byte, len(j.NewValue))
+	copy(newValueClone, j.NewValue)
+
+	return &DomainTransactionJournalStorageChange{
+		ScriptPublicKey: scriptPublicKeyClone,
+		Key:             j.Key,
+		PreviousValue:   previousValueClone,
+		NewValue:        newValueClone,
+	}
+}
+
+func (j *DomainTransactionJournalStorageChange) Equal(o DomainTransactionJournal) bool {
+	other, ok := o.(*DomainTransactionJournalStorageChange)
+	if !ok {
+		return false
+	}
+
+	if j == nil || other == nil {
+		return j == other
+	}
+
+	return j.ScriptPublicKey.Equal(other.ScriptPublicKey) &&
+		j.Key.Equal(&other.Key) &&
+		bytes.Equal(j.PreviousValue, other.PreviousValue) &&
+		bytes.Equal(j.NewValue, other.NewValue)
 }

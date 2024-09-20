@@ -6,9 +6,12 @@ import (
 
 	"github.com/bugnanetwork/bugnad/util/mstime"
 
+	"github.com/bugnanetwork/bugnad/domain/bvm/state"
+	"github.com/bugnanetwork/bugnad/domain/bvm/vm"
 	"github.com/bugnanetwork/bugnad/domain/consensus/database"
 	"github.com/bugnanetwork/bugnad/domain/consensus/model"
 	"github.com/bugnanetwork/bugnad/domain/consensus/model/externalapi"
+	"github.com/bugnanetwork/bugnad/domain/consensus/processes/transactionprocessor"
 	"github.com/bugnanetwork/bugnad/domain/consensus/ruleerrors"
 	"github.com/bugnanetwork/bugnad/infrastructure/logger"
 	"github.com/bugnanetwork/bugnad/util/staging"
@@ -59,6 +62,7 @@ type consensus struct {
 	headersSelectedChainStore           model.HeadersSelectedChainStore
 	daaBlocksStore                      model.DAABlocksStore
 	blocksWithTrustedDataDAAWindowStore model.BlocksWithTrustedDataDAAWindowStore
+	bvmStore                            model.BVMStore
 
 	consensusEventsChan chan externalapi.ConsensusEvent
 	virtualNotUpdated   bool
@@ -1145,4 +1149,26 @@ func (s *consensus) isNearlySyncedNoLock() (bool, error) {
 	log.Debugf("The selected tip timestamp is old (%d), so IsNearlySynced returns false",
 		virtualSelectedParentHeader.TimeInMilliseconds())
 	return false, nil
+}
+
+func (s *consensus) GetBvmSmartContractData(address *externalapi.ScriptPublicKey, input []byte) ([]byte, error) {
+	toAddress := vm.ScriptPubkeyToAddress(address)
+	stateDB := s.bvmStore.StateDBWrapper(s.databaseContext, model.NewStagingArea()).(*state.StateDB)
+
+	blockDaaScore, err := s.GetVirtualDAAScore()
+	if err != nil {
+		return nil, err
+	}
+
+	context := transactionprocessor.CreateExecuteContext(blockDaaScore, vm.Address{}, vm.Hash{}, 0)
+	chainConfig := transactionprocessor.CreateChainConfig()
+	vmConfig := transactionprocessor.CreateVMDefaultConfig()
+
+	evm := vm.NewEVM(context, stateDB, chainConfig, vmConfig)
+	ret, _, err := evm.Call(vm.AccountRef(vm.Address{}), toAddress, input, evm.GasLimit, big.NewInt(0))
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
 }

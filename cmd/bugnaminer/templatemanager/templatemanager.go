@@ -1,10 +1,11 @@
 package templatemanager
 
 import (
+	"sync"
+
 	"github.com/bugnanetwork/bugnad/app/appmessage"
 	"github.com/bugnanetwork/bugnad/domain/consensus/model/externalapi"
 	"github.com/bugnanetwork/bugnad/domain/consensus/utils/pow"
-	"sync"
 )
 
 var currentTemplate *externalapi.DomainBlock
@@ -22,6 +23,7 @@ func Get() (*externalapi.DomainBlock, *pow.State, bool) {
 	}
 	block := *currentTemplate
 	state := *currentState
+
 	return &block, &state, isSynced
 }
 

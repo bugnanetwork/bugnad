@@ -28,6 +28,52 @@ func DomainTransactionToDbTransaction(domainTransaction *externalapi.DomainTrans
 		}
 	}
 
+	logs := make([]*DbTransactionLog, len(domainTransaction.Logs))
+	for i, domainLog := range domainTransaction.Logs {
+		topics := make([]*DbHash, len(domainLog.Topics))
+		for j, topic := range domainLog.Topics {
+			topics[j] = DomainHashToDbHash(&topic)
+		}
+
+		logs[i] = &DbTransactionLog{
+			ScriptPublicKey: ScriptPublicKeyToDBScriptPublicKey(domainLog.ScriptPublicKey),
+			Topics:          topics,
+			Data:            domainLog.Data,
+			Index:           domainLog.Index,
+		}
+	}
+
+	journal := make([]*DbTransactionJournal, len(domainTransaction.Journal))
+	for i, domainJournal := range domainTransaction.Journal {
+		switch p := domainJournal.(type) {
+		case *externalapi.DomainTransactionJournalCreateObjectChange:
+			journal[i] = &DbTransactionJournal{
+				Payload: &DbTransactionJournal_CreateObjectChange_{
+					CreateObjectChange: &DbTransactionJournal_CreateObjectChange{
+						ScriptPublicKey: ScriptPublicKeyToDBScriptPublicKey(p.ScriptPublicKey),
+					},
+				},
+			}
+		case *externalapi.DomainTransactionJournalNonceChange:
+			journal[i] = &DbTransactionJournal{
+				Payload: &DbTransactionJournal_NonceChange_{NonceChange: &DbTransactionJournal_NonceChange{
+					ScriptPublicKey: ScriptPublicKeyToDBScriptPublicKey(p.ScriptPublicKey),
+					PreviousNonce:   p.PreviousNonce,
+					NewNonce:        p.NewNonce,
+				}},
+			}
+		case *externalapi.DomainTransactionJournalStorageChange:
+			journal[i] = &DbTransactionJournal{
+				Payload: &DbTransactionJournal_StorageChange_{StorageChange: &DbTransactionJournal_StorageChange{
+					ScriptPublicKey: ScriptPublicKeyToDBScriptPublicKey(p.ScriptPublicKey),
+					Key:             DomainHashToDbHash(&p.Key),
+					PreviousValue:   p.PreviousValue,
+					NewValue:        p.NewValue,
+				}},
+			}
+		}
+	}
+
 	return &DbTransaction{
 		Version:      uint32(domainTransaction.Version),
 		Inputs:       dbInputs,
@@ -36,6 +82,9 @@ func DomainTransactionToDbTransaction(domainTransaction *externalapi.DomainTrans
 		SubnetworkID: DomainSubnetworkIDToDbSubnetworkID(&domainTransaction.SubnetworkID),
 		Gas:          domainTransaction.Gas,
 		Payload:      domainTransaction.Payload,
+		Logs:         logs,
+		Journal:      journal,
+		Result:       domainTransaction.Result,
 	}
 }
 
@@ -72,6 +121,50 @@ func DbTransactionToDomainTransaction(dbTransaction *DbTransaction) (*externalap
 		}
 	}
 
+	logs := make([]*externalapi.DomainTransactionLog, len(dbTransaction.Logs))
+	for i, dbLog := range dbTransaction.Logs {
+		topics := make([]externalapi.DomainHash, len(dbLog.Topics))
+		for j, topic := range dbLog.Topics {
+			hash, _ := DbHashToDomainHash(topic)
+			topics[j] = *hash
+		}
+
+		scriptPublicKey, _ := DBScriptPublicKeyToScriptPublicKey(dbLog.ScriptPublicKey)
+		logs[i] = &externalapi.DomainTransactionLog{
+			ScriptPublicKey: scriptPublicKey,
+			Topics:          topics,
+			Data:            dbLog.Data,
+			Index:           dbLog.Index,
+		}
+	}
+
+	journal := make([]externalapi.DomainTransactionJournal, len(dbTransaction.Journal))
+	for i, dbJournal := range dbTransaction.Journal {
+		switch p := dbJournal.Payload.(type) {
+		case *DbTransactionJournal_CreateObjectChange_:
+			scriptPublicKey, _ := DBScriptPublicKeyToScriptPublicKey(p.CreateObjectChange.ScriptPublicKey)
+			journal[i] = &externalapi.DomainTransactionJournalCreateObjectChange{
+				ScriptPublicKey: scriptPublicKey,
+			}
+		case *DbTransactionJournal_NonceChange_:
+			scriptPublicKey, _ := DBScriptPublicKeyToScriptPublicKey(p.NonceChange.ScriptPublicKey)
+			journal[i] = &externalapi.DomainTransactionJournalNonceChange{
+				ScriptPublicKey: scriptPublicKey,
+				PreviousNonce:   p.NonceChange.PreviousNonce,
+				NewNonce:        p.NonceChange.NewNonce,
+			}
+		case *DbTransactionJournal_StorageChange_:
+			key, _ := DbHashToDomainHash(p.StorageChange.Key)
+			scriptPublicKey, _ := DBScriptPublicKeyToScriptPublicKey(p.StorageChange.ScriptPublicKey)
+			journal[i] = &externalapi.DomainTransactionJournalStorageChange{
+				ScriptPublicKey: scriptPublicKey,
+				Key:             *key,
+				PreviousValue:   p.StorageChange.PreviousValue,
+				NewValue:        p.StorageChange.NewValue,
+			}
+		}
+	}
+
 	if dbTransaction.Version > math.MaxUint16 {
 		return nil, errors.Errorf("The transaction version is bigger then uint16.")
 	}
@@ -83,5 +176,8 @@ func DbTransactionToDomainTransaction(dbTransaction *DbTransaction) (*externalap
 		SubnetworkID: *domainSubnetworkID,
 		Gas:          dbTransaction.Gas,
 		Payload:      dbTransaction.Payload,
+		Logs:         logs,
+		Journal:      journal,
+		Result:       dbTransaction.Result,
 	}, nil
 }
